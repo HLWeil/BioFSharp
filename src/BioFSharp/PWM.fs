@@ -96,15 +96,12 @@ module CompositeVector =
         backGroundProbabilityVector.[bioItem] <- backGroundProbabilityVector.[bioItem] + n
         backGroundProbabilityVector
 
-    /// Create a ProbabilityCompositeVector based on a FrequencyCompositeVector by replacing the integers with floats.
-    let createPCVOf (caArray:FrequencyCompositeVector) =
-        caArray.Array
-        |> Array.map (fun item -> float item)
-        |> fun item -> new ProbabilityCompositeVector(item)
-
-    /// Create normalized ProbabilityCompositeVector based on FrequencyCompositeVector.
-    let createNormalizedPCVOfFCV (alphabet:#IBioItem[]) (pseudoCount:float) (frequencyCompositeVector:FrequencyCompositeVector) =
-        let backGroundProbabilityVector = createPCVOf frequencyCompositeVector
+    /// Create a ProbabilityCompositeVector based on FrequencyCompositeVector.
+    let createPCVOfFCV (alphabet:#IBioItem[]) (pseudoCount:float) (frequencyCompositeVector:FrequencyCompositeVector) =
+        let backGroundProbabilityVector = 
+            frequencyCompositeVector.Array
+            |> Array.map (fun item -> float item)
+            |> fun item -> new ProbabilityCompositeVector(item)
         let sum = (float (Array.sum frequencyCompositeVector.Array)) + ((float alphabet.Length) * pseudoCount)
         for item in alphabet do
             backGroundProbabilityVector.[item] <- (backGroundProbabilityVector.[item] + pseudoCount)/sum
@@ -237,15 +234,11 @@ module PositionMatrix =
         positionProbabilityMatrix
 
     /// Create new PositionWeightMatrix based on existing PositionFrequencyMatrix. 
-    /// The counts of each position of each element are transformed to floats.
-    let createPPMOf (positionFrequencyMatrix:PositionFrequencyMatrix) =
-        positionFrequencyMatrix.Matrix |> Array2D.map (fun item -> float item)
-        |> fun item -> new PositionProbabilityMatrix(item)
-
-    // Create new PositionWeightMatrix based on existing PositionFrequencyMatrix. 
-    /// The counts of each position of each element are transformed to floats.
-    let normalizePPM (sourceCount:int) (alphabet:#IBioItem[]) (pseudoCount:float) (positionFrequencyMatrix:PositionProbabilityMatrix) =
-        let positionProbabilityMatrix = new PositionProbabilityMatrix(positionFrequencyMatrix.Matrix)
+    /// The frequencies are increased by the pseudoCount and for each position, the probability against all other symbols given by the alphabet is calculated.
+    let createPPMOfPFM (sourceCount:int) (alphabet:#IBioItem[]) (pseudoCount:float) (positionFrequencyMatrix:PositionFrequencyMatrix) =
+        let positionProbabilityMatrix = 
+            positionFrequencyMatrix.Matrix |> Array2D.map (fun item -> float item)
+            |> fun item -> new PositionProbabilityMatrix(item)
         let sum = (float sourceCount) + ((float alphabet.Length) * pseudoCount)
         for item in alphabet do
             for position = 0 to (Array2D.length2 positionProbabilityMatrix.Matrix) - 1 do
@@ -325,8 +318,7 @@ module SiteSampler =
                         (PositionMatrix.getSegment motiveLength subSequence position) 
                          |> PositionMatrix.createPFMOf) unChosenArrays unChosenStartPositions
                     |> PositionMatrix.fusePositionFrequencyMatrices motiveLength
-                    |> PositionMatrix.createPPMOf
-                    |> PositionMatrix.normalizePPM (sources.Length - 1) alphabet pseudoCount
+                    |> PositionMatrix.createPPMOfPFM (sources.Length - 1) alphabet pseudoCount
                 let tmp = getBestPWMSsWithBPV motiveLength alphabet sources.[randomSourceNumber.[n]] pcv positionProbabilityMatrix
                 loop 
                     (n + 1) 
@@ -357,8 +349,7 @@ module SiteSampler =
                         (PositionMatrix.getSegment motiveLength subSequence position) 
                          |> PositionMatrix.createPFMOf) unChosenArrays unChosenStartPositions
                     |> PositionMatrix.fusePositionFrequencyMatrices motiveLength
-                    |> PositionMatrix.createPPMOf
-                    |> PositionMatrix.normalizePPM (sources.Length - 1) alphabet pseudoCount
+                    |> PositionMatrix.createPPMOfPFM (sources.Length - 1) alphabet pseudoCount
                 let tmp = getBestPWMSsWithBPV motiveLength alphabet sources.[randomSourceNumber.[n]] pcv positionProbabilityMatrix
                 loop 
                     (n + 1) 
@@ -389,8 +380,7 @@ module SiteSampler =
                         (PositionMatrix.getSegment motiveLength subSequence position) 
                          |> PositionMatrix.createPFMOf) unChosenArrays unChosenStartPositions
                     |> PositionMatrix.fusePositionFrequencyMatrices motiveLength
-                    |> PositionMatrix.createPPMOf
-                    |> PositionMatrix.normalizePPM (sources.Length - 1) alphabet pseudoCount
+                    |> PositionMatrix.createPPMOfPFM (sources.Length - 1) alphabet pseudoCount
                 let tmp = getBestPWMSsWithBPV motiveLength alphabet sources.[randomSourceNumber.[n]] pcv positionProbabilityMatrix
                 loop 
                     (n + 1) 
@@ -420,8 +410,7 @@ module SiteSampler =
                         (PositionMatrix.getSegment motiveLength subSequence position) 
                          |> PositionMatrix.createPFMOf) unChosenArrays randomStartPositions
                     |> PositionMatrix.fusePositionFrequencyMatrices motiveLength
-                    |> PositionMatrix.createPPMOf
-                    |> PositionMatrix.normalizePPM (sources.Length - 1) alphabet pseudoCount
+                    |> PositionMatrix.createPPMOfPFM (sources.Length - 1) alphabet pseudoCount
                 loop (n + 1) (getBestPWMSsWithBPV motiveLength alphabet sources.[randomSourceNumber.[n]] pcv positionProbabilityMatrix::acc)
         loop 0 []
 
@@ -467,7 +456,7 @@ module SiteSampler =
                     let pcv =
                         increaseInPlaceFCVOf source fcVector
                         |> substractSegmentCountsFrom segment 
-                        |> createNormalizedPCVOfFCV alphabet pseudoCount
+                        |> createPCVOfFCV alphabet pseudoCount
                     let pwMatrix = PositionMatrix.createPositionWeightMatrix alphabet pcv positionProbabilityMatrix
                     segment
                     |> PositionMatrix.calculateSegmentScoreBy pwMatrix
@@ -514,8 +503,7 @@ module SiteSampler =
                         PositionMatrix.getSegment motiveLength subSequence position
                         |> PositionMatrix.createPFMOf) unChosenArrays unChosenStartPositions
                     |> PositionMatrix.fusePositionFrequencyMatrices motiveLength
-                    |> PositionMatrix.createPPMOf
-                    |> PositionMatrix.normalizePPM (sources.Length - 1) alphabet pseudoCount
+                    |> PositionMatrix.createPPMOfPFM (sources.Length - 1) alphabet pseudoCount
                 let tmp = getBestPWMSs motiveLength alphabet pseudoCount sources.[randomSourceNumber.[n]] frequencyCompositeVector positionProbabilityMatrix
                 loop 
                     (n + 1) 
@@ -550,8 +538,7 @@ module SiteSampler =
                         PositionMatrix.getSegment motiveLength subSequence position
                         |> PositionMatrix.createPFMOf) unChosenArrays unChosenStartPositions
                     |> PositionMatrix.fusePositionFrequencyMatrices motiveLength
-                    |> PositionMatrix.createPPMOf
-                    |> PositionMatrix.normalizePPM (sources.Length - 1) alphabet pseudoCount
+                    |> PositionMatrix.createPPMOfPFM (sources.Length - 1) alphabet pseudoCount
                 let tmp = getBestPWMSs motiveLength alphabet pseudoCount sources.[randomSourceNumber.[n]] frequencyCompositeVector positionProbabilityMatrix
                 loop 
                     (n + 1) 
@@ -586,8 +573,7 @@ module SiteSampler =
                         PositionMatrix.getSegment motiveLength subSequence position
                         |> PositionMatrix.createPFMOf) unChosenArrays unChosenStartPositions
                     |> PositionMatrix.fusePositionFrequencyMatrices motiveLength
-                    |> PositionMatrix.createPPMOf
-                    |> PositionMatrix.normalizePPM (sources.Length - 1) alphabet pseudoCount
+                    |> PositionMatrix.createPPMOfPFM (sources.Length - 1) alphabet pseudoCount
                 let tmp = getBestPWMSs motiveLength alphabet pseudoCount sources.[randomSourceNumber.[n]] frequencyCompositeVector positionProbabilityMatrix
                 loop 
                     (n + 1) 
@@ -621,8 +607,7 @@ module SiteSampler =
                         PositionMatrix.getSegment motiveLength subSequence position
                         |> PositionMatrix.createPFMOf) unChosenArrays randomStartPositions
                     |> PositionMatrix.fusePositionFrequencyMatrices motiveLength
-                    |> PositionMatrix.createPPMOf
-                    |> PositionMatrix.normalizePPM (sources.Length - 1) alphabet pseudoCount
+                    |> PositionMatrix.createPPMOfPFM (sources.Length - 1) alphabet pseudoCount
                 loop (n + 1) (acc.[randomSourceNumber.[n]] <- getBestPWMSs motiveLength alphabet pseudoCount sources.[randomSourceNumber.[n]] frequencyCompositeVector positionProbabilityMatrix
                               acc)
         loop 0 (Array.zeroCreate sources.Length)
