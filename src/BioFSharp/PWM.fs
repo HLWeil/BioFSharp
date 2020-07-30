@@ -115,7 +115,7 @@ module CompositeVector =
 module PositionMatrix =
 
     ///Checks whether all elements in the list have a wider distance than width or not.
-    let internal ceckForDistance (width:int) (items:int list) =
+    let internal checkForDistance (width:int) (items:int list) =
         if items.Length <= 0 || items.Length = 1 then true
         else
             let rec loop n i =
@@ -176,6 +176,9 @@ module PositionMatrix =
         member this.Item
             with get (column, row)       = matrix.[getRowArray2DIndex column, row]
             and  set (column, row) value = matrix.[getRowArray2DIndex column, row] <- value
+
+        member this.Length =
+            matrix |> Array2D.length1
 
     /// Matrix with fixed positions for nucleotides and amino acids with default value of 0.
     type PositionFrequencyMatrix internal(matrix:int [,]) =
@@ -300,8 +303,8 @@ module SiteSampler =
 
     /// Checks whether downstream of given positions a higher InformationContent is present or not. 
     /// If yes, the new InformationContent and positions are given back, otherwise the old ones.
-    let getRightShiftedBestPWMSsWithBPV (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) (startPositions:(float*int)[]) =
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let getRightShiftedBestPWMSsWithBPV rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) (startPositions:(float*int)[]) =
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) (acc:(float*int)[]) (bestmotive:(float*int)[]) =
             if n = sources.Length then 
                 if (acc |> Array.map (fun item -> snd item)) = (bestmotive |> Array.map (fun item -> snd item)) then acc
@@ -332,8 +335,8 @@ module SiteSampler =
 
     /// Checks whether upstream of given positions a higher PositionWeightMatrixScore is present or not. 
     /// If yes, the new PositionWeightMatrixScore and positions are given back, otherwise the old ones.
-    let getLeftShiftedBestPWMSsWithBPV (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) (startPositions:(float*int)[]) =
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let getLeftShiftedBestPWMSsWithBPV rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) (startPositions:(float*int)[]) =
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) (acc:(float*int)[]) (bestmotive:(float*int)[]) =
             if n = sources.Length then
                 if (acc |> Array.map (fun item -> snd item)) = (bestmotive |> Array.map (fun item -> snd item)) then acc
@@ -363,8 +366,8 @@ module SiteSampler =
 
     /// Checks the given Sequence for the existence of a conserved motive, by scoring each segment based on the given start positions.
     /// The new PositionWeightMatrix is calculated and updated each iteration if segments with higher scores are found until convergence.
-    let findBestmotiveWithStartPosition (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) (startPositions:(float*int)[]) =        
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let findBestmotiveWithStartPosition rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) (startPositions:(float*int)[]) =        
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) acc bestmotive =
             if n = sources.Length then 
                 if (acc |> Array.map (fun item -> snd item)) = (bestmotive |> Array.map (fun item -> snd item)) then acc
@@ -394,8 +397,8 @@ module SiteSampler =
 
     /// Creates a random start position for each sequence and calculates a PositionWeightMatrix based on the. 
     /// The PositionWeithMatrix is then used to find the best PositionWeightMatrixScore for each sequence and gives you back the new Positions and PositionWeightMatrixScores.
-    let getPWMOfRandomStartsWithBPV (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) =    
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let getPWMOfRandomStartsWithBPV rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) =    
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) acc =
             if n = sources.Length then (List.rev acc) |> List.toArray
             else
@@ -416,8 +419,8 @@ module SiteSampler =
 
     /// Repeats the search for the best InformationContent of each found PositionWeightMatrix until they converge or a maximum number of repetitions.
     /// Each iteration it is checked if better InformationContent is found or not.
-    let getmotifsWithBestInformationContentWithBPV (numberOfRepetitions:int) (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) =
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let getmotifsWithBestInformationContentWithBPV rnd (numberOfRepetitions:int) (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) =
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) (acc:(float*int)[]) (bestPWMS:(float*int)[]) =
             if n > numberOfRepetitions then
                 bestPWMS
@@ -437,10 +440,10 @@ module SiteSampler =
                         loop (n + 1) [||] (if Array.isEmpty acc then bestPWMS else acc)
                     else
                         let pwms =
-                            getPWMOfRandomStartsWithBPV motiveLength pseudoCount alphabet sources pcv
-                            |> findBestmotiveWithStartPosition motiveLength pseudoCount alphabet sources pcv
-                            |> getLeftShiftedBestPWMSsWithBPV motiveLength pseudoCount alphabet sources pcv
-                            |> getRightShiftedBestPWMSsWithBPV motiveLength pseudoCount alphabet sources pcv
+                            getPWMOfRandomStartsWithBPV rnd motiveLength pseudoCount alphabet sources pcv
+                            |> findBestmotiveWithStartPosition rnd motiveLength pseudoCount alphabet sources pcv
+                            |> getLeftShiftedBestPWMSsWithBPV rnd motiveLength pseudoCount alphabet sources pcv
+                            |> getRightShiftedBestPWMSsWithBPV rnd motiveLength pseudoCount alphabet sources pcv
                         loop (n + 1) pwms bestPWMS
         loop 0 [||] [|0., 0|]
 
@@ -481,8 +484,8 @@ module SiteSampler =
 
     /// Checks whether downstream of given positions a higher InformationContent is present or not. 
     /// If yes, the new InformationContent and positions are given back, otherwise the old ones.
-    let getRightShiftedBestPWMSs (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (startPositions:(float*int)[]) =
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let getRightShiftedBestPWMSs rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (startPositions:(float*int)[]) =
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) (acc:(float*int)[]) (bestmotive:(float*int)[]) =
             if n = sources.Length then 
                 if (acc |> Array.map (fun item -> snd item)) = (bestmotive |> Array.map (fun item -> snd item)) then acc
@@ -517,8 +520,8 @@ module SiteSampler =
 
     /// Checks whether upstream of given positions a higher PositionWeightMatrixScore is present or not. 
     /// If yes, the new PositionWeightMatrixScore and positions are given back, otherwise the old ones.
-    let getLeftShiftedBestPWMSs (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (startPositions:(float*int)[]) =
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let getLeftShiftedBestPWMSs rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (startPositions:(float*int)[]) =
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) (acc:(float*int)[]) (bestmotive:(float*int)[]) =
             if n = sources.Length then
                 if (acc |> Array.map (fun item -> snd item)) = (bestmotive |> Array.map (fun item -> snd item)) then acc
@@ -552,8 +555,8 @@ module SiteSampler =
 
     /// Checks the given sequence for the existence of a conserved motive, by scoring each segment based on the given start positions.
     /// The new PositionWeightMatrix is calculated and updated at each iteration if segments with higher scores are found until convergence.
-    let getBestPWMSsWithStartPositions (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (startPositions:(float*int)[]) =        
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let getBestPWMSsWithStartPositions rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (startPositions:(float*int)[]) =        
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) acc bestmotive =
             if n = sources.Length then 
                 if (acc |> Array.map (fun item -> snd item)) = (bestmotive |> Array.map (fun item -> snd item)) then acc
@@ -587,8 +590,8 @@ module SiteSampler =
 
     /// Creates a random start position for each sequence and calculates a PositionWeightMatrix based on the. 
     /// The PositionWeithMatrix is then used to find the best PositionWeightMatrixScore for each sequence and gives you back the new Positions and PositionWeightMatrixScores.
-    let getPWMOfRandomStarts (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) =
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let getPWMOfRandomStarts rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) =
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) (acc:((float*int)[])) =
             if n = sources.Length then acc
             else
@@ -614,7 +617,7 @@ module SiteSampler =
 
     /// Repeats the search for the best InformationContent of each found PositionWeightMatrix until they converge or a maximum number of repetitions.
     /// Each iteration it is checked if better InformationContent is found or not.
-    let getmotifsWithBestInformationContent (numberOfRepetitions:int) (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) =
+    let getmotifsWithBestInformationContent rnd (numberOfRepetitions:int) (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) =
         let rec loop (n:int) (acc:(float*int)[]) (bestPWMS:(float*int)[]) =
             if n > numberOfRepetitions then
                 bestPWMS
@@ -634,17 +637,17 @@ module SiteSampler =
                         loop (n + 1) [||] (if Array.isEmpty acc then bestPWMS else acc)
                     else
                         let pwms =
-                            getPWMOfRandomStarts motiveLength pseudoCount alphabet sources
-                            |> getBestPWMSsWithStartPositions motiveLength pseudoCount alphabet sources
-                            |> getLeftShiftedBestPWMSs motiveLength pseudoCount alphabet sources
-                            |> getRightShiftedBestPWMSs motiveLength pseudoCount alphabet sources
+                            getPWMOfRandomStarts rnd motiveLength pseudoCount alphabet sources
+                            |> getBestPWMSsWithStartPositions rnd motiveLength pseudoCount alphabet sources
+                            |> getLeftShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
+                            |> getRightShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
                         loop (n + 1) pwms bestPWMS
         loop 0 [||] [|0., 0|]
 
     /// Creates a random start position for each sequence and calculates a PositionWeightMatrix based on the. 
     /// The PositionWeithMatrix is then used to find the best PositionWeightMatrixScore for each sequence and gives you back the new Positions and PositionWeightMatrixScores.
-    let getmotifsWithBestPWMSOfPPM (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (positionProbabilityMatrix:PositionMatrix.PositionProbabilityMatrix) =
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let getmotifsWithBestPWMSOfPPM rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (positionProbabilityMatrix:PositionMatrix.PositionProbabilityMatrix) =
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) acc:((float*int)[]) =
             if n = sources.Length then acc
             else
@@ -665,8 +668,8 @@ module SiteSampler =
 
     /// Creates a random start position for each sequence and calculates a PositionWeightMatrix based on the. 
     /// The PositionWeithMatrix is then used to find the best PositionWeightMatrixScore for each sequence and gives you back the new Positions and PositionWeightMatrixScores.
-    let getmotifsWithBestPWMSOfPWM (motiveLength:int) (sources:BioArray.BioArray<#IBioItem>[]) (pwm:PositionMatrix.PositionWeightMatrix) =
-        let randomSourceNumber = Array.shuffleFisherYates([|0..sources.Length-1|])
+    let getmotifsWithBestPWMSOfPWM rnd (motiveLength:int) (sources:BioArray.BioArray<#IBioItem>[]) (pwm:PositionMatrix.PositionWeightMatrix) =
+        let randomSourceNumber = Array.shuffleFisherYates rnd ([|0..sources.Length-1|])
         let rec loop (n:int) acc:((float*int)[]) =
             if n = sources.Length then acc
             else
@@ -676,7 +679,7 @@ module SiteSampler =
 
     /// Repeats the search for the best InformationContent of each found PositionWeightMatrix until they converge or a maximum number of repetitions.
     /// Each iteration it is checked if better InformationContent is found or not.
-    let getBestInformationContentOfPPM (numberOfRepetitions:int) (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (positionProbabilityMatrix:PositionMatrix.PositionProbabilityMatrix) =
+    let getBestInformationContentOfPPM rnd (numberOfRepetitions:int) (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (positionProbabilityMatrix:PositionMatrix.PositionProbabilityMatrix) =
         let rec loop (n:int) (acc:(float*int)[]) (bestPWMS:(float*int)[]) =
             if n > numberOfRepetitions then
                 bestPWMS
@@ -696,33 +699,74 @@ module SiteSampler =
                         loop (n + 1) [||] (if Array.isEmpty acc then bestPWMS else acc)
                     else
                         let pwms =
-                            getmotifsWithBestPWMSOfPPM motiveLength pseudoCount alphabet sources positionProbabilityMatrix
-                            |> getBestPWMSsWithStartPositions motiveLength pseudoCount alphabet sources
-                            |> getLeftShiftedBestPWMSs motiveLength pseudoCount alphabet sources
-                            |> getRightShiftedBestPWMSs motiveLength pseudoCount alphabet sources
+                            getmotifsWithBestPWMSOfPPM rnd motiveLength pseudoCount alphabet sources positionProbabilityMatrix
+                            |> getBestPWMSsWithStartPositions rnd motiveLength pseudoCount alphabet sources
+                            |> getLeftShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
+                            |> getRightShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
                         loop (n + 1) pwms bestPWMS
         loop 0 [||] [|0., 0|]
 
-    let doSiteSampling (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) =
-        getPWMOfRandomStarts motiveLength pseudoCount alphabet sources
-        |> getBestPWMSsWithStartPositions motiveLength pseudoCount alphabet sources
-        |> getLeftShiftedBestPWMSs motiveLength pseudoCount alphabet sources
-        |> getRightShiftedBestPWMSs motiveLength pseudoCount alphabet sources
+    let doSiteSampling rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) =
+        getPWMOfRandomStarts rnd motiveLength pseudoCount alphabet sources
+        |> getBestPWMSsWithStartPositions rnd motiveLength pseudoCount alphabet sources
+        |> getLeftShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
+        |> getRightShiftedBestPWMSs rnd  motiveLength pseudoCount alphabet sources
 
-    let doSiteSamplingWithPCV (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) =
-        getPWMOfRandomStartsWithBPV motiveLength pseudoCount alphabet sources pcv
-        |> findBestmotiveWithStartPosition motiveLength pseudoCount alphabet sources pcv
-        |> getLeftShiftedBestPWMSsWithBPV motiveLength pseudoCount alphabet sources pcv
-        |> getRightShiftedBestPWMSsWithBPV motiveLength pseudoCount alphabet sources pcv
+    let doSiteSamplingWithPCV rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pcv:ProbabilityCompositeVector) =
+        getPWMOfRandomStartsWithBPV rnd motiveLength pseudoCount alphabet sources pcv
+        |> findBestmotiveWithStartPosition rnd motiveLength pseudoCount alphabet sources pcv
+        |> getLeftShiftedBestPWMSsWithBPV rnd motiveLength pseudoCount alphabet sources pcv
+        |> getRightShiftedBestPWMSsWithBPV rnd motiveLength pseudoCount alphabet sources pcv
 
-    let doSiteSamplingWithPPM (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (ppM:PositionMatrix.PositionProbabilityMatrix) =
-        getmotifsWithBestPWMSOfPPM motiveLength pseudoCount alphabet sources ppM
-        |> getBestPWMSsWithStartPositions motiveLength pseudoCount alphabet sources
-        |> getLeftShiftedBestPWMSs motiveLength pseudoCount alphabet sources
-        |> getRightShiftedBestPWMSs motiveLength pseudoCount alphabet sources
+    let doSiteSamplingWithPPM rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (ppM:PositionMatrix.PositionProbabilityMatrix) =
+        getmotifsWithBestPWMSOfPPM rnd motiveLength pseudoCount alphabet sources ppM
+        |> getBestPWMSsWithStartPositions rnd motiveLength pseudoCount alphabet sources
+        |> getLeftShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
+        |> getRightShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
 
-    let doSiteSamplingWithPWM (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pwm:PositionMatrix.PositionWeightMatrix) =
-        getmotifsWithBestPWMSOfPWM motiveLength sources pwm
-        |> getBestPWMSsWithStartPositions motiveLength pseudoCount alphabet sources
-        |> getLeftShiftedBestPWMSs motiveLength pseudoCount alphabet sources
-        |> getRightShiftedBestPWMSs motiveLength pseudoCount alphabet sources
+    let doSiteSamplingWithPWM rnd (motiveLength:int) (pseudoCount:float) (alphabet:#IBioItem[]) (sources:BioArray.BioArray<#IBioItem>[]) (pwm:PositionMatrix.PositionWeightMatrix) =
+        getmotifsWithBestPWMSOfPWM rnd motiveLength sources pwm
+        |> getBestPWMSsWithStartPositions rnd motiveLength pseudoCount alphabet sources
+        |> getLeftShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
+        |> getRightShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
+
+
+module Similarity = 
+
+    open PositionMatrix
+
+    let private positionMatrixToDensePositionArray (alphabet:#IBioItem[]) (matrix: BaseMatrix<IBioItem,'T>) =
+        let get position bioitem = matrix.[bioitem,position]
+        Array.init matrix.Length (fun position ->
+            alphabet
+            |> Array.map (get position)        
+        )
+
+    let private compareDensePositionArrays (comparisonFunction : 'T [] -> 'T [] -> float) (m1 : 'T [][]) (m2 : 'T [][]) : float = 
+        if m1.Length = m2.Length then
+            let unnormalizedScore = 
+                Array.init m1.Length (fun i ->
+                    comparisonFunction m1.[i] m2.[i]
+                )
+                |> Array.sum
+            unnormalizedScore / (float m1.Length)
+
+         else 
+            let shorterMotif,longerMotif = if m1.Length < m2.Length then m1,m2 else m2,m1
+            let averageMotifLength = (float m1.Length + float m2.Length) / 2.
+            let lengthDifference = longerMotif.Length - shorterMotif.Length
+
+            Array.init (lengthDifference + 1) (fun offSet -> 
+                let unnormalizedScore = 
+                    Array.init shorterMotif.Length (fun i ->
+                        comparisonFunction shorterMotif.[i] longerMotif.[i+offSet]
+                    )
+                    |> Array.sum
+                unnormalizedScore / averageMotifLength          
+            )
+            |> Array.max
+
+    let compareTwoPositionMatrices (alphabet:#IBioItem[]) (comparisonFunction : 'T [] -> 'T [] -> float) (matrix1: BaseMatrix<IBioItem,'T>) (matrix2: BaseMatrix<IBioItem,'T>) = 
+        let m1 = positionMatrixToDensePositionArray alphabet matrix1
+        let m2 = positionMatrixToDensePositionArray alphabet matrix2
+        compareDensePositionArrays comparisonFunction m1 m2
