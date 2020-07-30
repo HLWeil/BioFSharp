@@ -432,8 +432,13 @@ module Nucleotides =
         let codon = (n1,n2,n3)
         CodonMap.Item(codon)
 
+    /// The four nucleotides standard in DNA
+    let standardDNANucleotides = 
+        [|Nucleotide.A;Nucleotide.C;Nucleotide.G;Nucleotide.T|]
 
-
+    /// The four nucleotides standard in RNA
+    let standardRNANucleotides = 
+        [|Nucleotide.A;Nucleotide.C;Nucleotide.G;Nucleotide.U|]
 
     /// Returns the name of nucleotide
     let name (nuc:Nucleotide) =

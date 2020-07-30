@@ -15,6 +15,22 @@ module FSIPrinters =
 
     module internal FormatHelpers =
         
+            module PSSM = 
+                open BioFSharp.PositionSpecificScoringMatrices
+
+                let formatBaseMatrix (toString : 'a -> string) (baseMatrix : PositionMatrix.BaseMatrix<IBioItem,'a>) =
+                    if baseMatrix.Alphabet = Array.empty then
+                        sprintf "%A" baseMatrix.Matrix
+                    else                       
+                        baseMatrix.Alphabet
+                        |> Array.map (fun item ->
+                            baseMatrix.GetPositionScoresOfItem(item)
+                            |> Array.fold (fun state value -> state + " " + toString value) ""
+                            |> sprintf "%c %s" item.Symbol                        
+                        )
+                        |> Array.reduce (fun a b -> a + "\n" + b)
+                        |> (+) "\n"
+
             module SOFT =
 
                 let formatSingleEntry rootIdent (s: string) =
@@ -345,4 +361,13 @@ Samples         %s
             (gpl.PlatformMetadata.Contributor           |> SOFT.formatMultiEntries 4)
             (gpl.SeriesMetadata                         |> SOFT.formatSeries 4)
             (gpl.SampleMetadata                         |> SOFT.formatSamples 4)
+
+    let prettyPrintPFM (matrix : PositionSpecificScoringMatrices.PositionMatrix.PositionFrequencyMatrix) =
+        FormatHelpers.PSSM.formatBaseMatrix (sprintf "%i") matrix
+
+    let prettyPrintPPM (matrix : PositionSpecificScoringMatrices.PositionMatrix.PositionProbabilityMatrix) =
+        FormatHelpers.PSSM.formatBaseMatrix (sprintf "%.2f") matrix
+
+    let prettyPrintPWM (matrix : PositionSpecificScoringMatrices.PositionMatrix.PositionWeightMatrix) =
+        FormatHelpers.PSSM.formatBaseMatrix (sprintf "%.2f") matrix
 
