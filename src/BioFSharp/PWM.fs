@@ -4,19 +4,49 @@ open System
 open FSharpAux
 open BioFSharp
 
+(*
+TODO
+
+-Backgroundfrequencies:
+    rename
+    make functions more concise
+    add table for model species
+
+Similarity
+    1vsMany
+    ManyVsEachOther
+
+IO
+    Read PWMS
+    Write PWMS
+    Hier oder in BioFSharp.IO?
+
+Dokumentation
+
+*)
+
+
+
 module PositionSpecificScoringMatrices = 
+
+    type IBioItemFrequencies =
+        abstract member Print: unit -> string
+    
+
     ///Consists of functions to work with Frequency- and Probability-Composite-Vectors.
-    module CompositeVector =
+    module BackgroundFrequencies =
 
         /// One dimensional array with fixed positions for each element.
-        type CompositeVector<'a, 'value when 'a :> IBioItem>internal (array:'value []) =
+        type CompositeVector<'a, 'value when 'a :> IBioItem>internal (alphabet:'a [],array:'value []) =
     
+            let mutable internalAlphabet = alphabet
+
             let getIndex (key:'a) =
                 (BioItem.symbol key |> int) - 42
 
             new () =
                 let arr:'value [] = Array.zeroCreate 49
-                new CompositeVector<_, 'value>(arr)
+                new CompositeVector<_, 'value>(Array.empty,arr)
 
             member this.Array = 
                 if (obj.ReferenceEquals(array, null)) then
@@ -26,35 +56,67 @@ module PositionSpecificScoringMatrices =
             member this.Item
                 with get i       = array.[getIndex i]
                 and  set i value = array.[getIndex i] <- value
+                        
+            member this.Alphabet
+                with get ()                     = internalAlphabet
+                and set (alphabet)  = internalAlphabet <- alphabet
+
+
+        let private printHelper (toString : 'a -> string) (baseVector : CompositeVector<IBioItem,'a>) =
+            if baseVector.Alphabet = Array.empty then
+                sprintf "%A" baseVector.Array
+            else
+                let symbols,values = 
+                    baseVector.Alphabet
+                    |> Array.map (fun item ->
+                        let s = 
+                            baseVector.Item(item)
+                            |> toString    
+                        if s.Length >= 5 then s,sprintf "%c\t" item.Symbol
+                        else s,sprintf "%c" item.Symbol
+                    )
+                    |> Array.unzip 
+                    |> fun (vs,ss) -> 
+                        ss |> Array.reduce (fun a b -> a + "\t" + b),
+                        vs |> Array.reduce (fun a b -> a + "\t" + b)
+                symbols + "\n" + values
 
         /// One dimensional array with fixed positions for each element.
         /// Use to track frequency of elements independent of position in source.
-        type FrequencyCompositeVector internal (array:int []) =
+        type FrequencyCompositeVector internal (alphabet:'a [],array:int []) =
 
-            inherit CompositeVector<IBioItem, int>(array)
+            inherit CompositeVector<IBioItem, int>(alphabet,array)
 
             new() = 
                 let arr:'value [] = Array.zeroCreate 49
-                new FrequencyCompositeVector(arr)
+                new FrequencyCompositeVector(Array.empty,arr)
+
+            new(alphabet) = 
+                let arr:'value [] = Array.zeroCreate 49
+                new FrequencyCompositeVector(alphabet,arr)
+
+            interface IBioItemFrequencies with
+                member this.Print() = printHelper (sprintf "%i") this
 
         /// Increase counter of position by 1.
-        let increaseInPlaceFCV (bioItem:#IBioItem) (frequencyCompositeVector:FrequencyCompositeVector) = 
+        let internal increaseInPlaceFCV (bioItem:#IBioItem) (frequencyCompositeVector:FrequencyCompositeVector) = 
             frequencyCompositeVector.[bioItem] <- frequencyCompositeVector.[bioItem] + 1
             frequencyCompositeVector
 
         /// Increase counter of position by n.
-        let increaseInPlaceFCVBy (bioItem:'a) (frequencyCompositeVector:FrequencyCompositeVector) n = 
+        let internal increaseInPlaceFCVBy (bioItem:'a) (frequencyCompositeVector:FrequencyCompositeVector) n = 
             frequencyCompositeVector.[bioItem] <- frequencyCompositeVector.[bioItem] + n
             frequencyCompositeVector
 
         /// Create a FrequencyCompositeVector based on BioArrays and exclude the specified segments.
-        let createFCVOf (resSources:BioArray.BioArray<#IBioItem>) =
-            let backGroundCounts = new FrequencyCompositeVector()   
+        let createFCVOfSequence (resSources:BioArray.BioArray<#IBioItem>) =
+            let alphabet = resSources |> Array.distinct
+            let backGroundCounts = new FrequencyCompositeVector(alphabet)   
             Array.fold (fun bc bioItem -> (increaseInPlaceFCV bioItem bc)) backGroundCounts resSources
 
         /// Create new FrequencyCompositeVector based on the sum of the positions of an array of FrequencyVectors.
         let fuseFrequencyVectors (alphabet:#IBioItem[]) (bfVectors:FrequencyCompositeVector[]) =
-            let backgroundFrequencyVector = new FrequencyCompositeVector()
+            let backgroundFrequencyVector = new FrequencyCompositeVector(alphabet)
             for fcVector in bfVectors do
                 for bioItem in alphabet do
                     backgroundFrequencyVector.[bioItem] <- backgroundFrequencyVector.[bioItem] + (fcVector.[bioItem])
@@ -67,32 +129,39 @@ module PositionSpecificScoringMatrices =
             |> Array.fold (fun bc bioItem -> (increaseInPlaceFCV bioItem bc)) backGroundCounts
 
         /// Create FrequencyCompositeVector based on BioArray.
-        let increaseInPlaceFCVOf (resSources:BioArray.BioArray<#IBioItem>) (backGroundCounts:FrequencyCompositeVector) =   
+        let internal increaseInPlaceFCVOf (resSources:BioArray.BioArray<#IBioItem>) (backGroundCounts:FrequencyCompositeVector) =   
             resSources
             |> Array.fold (fun bc bioItem -> (increaseInPlaceFCV bioItem bc)) backGroundCounts
 
         /// Subtracts the amount of elements in the given source from the FrequencyCompositeVector.
         let substractSegmentCountsFrom (source:BioArray.BioArray<#IBioItem>) (fcVector:FrequencyCompositeVector) =
-            let bfVec = new FrequencyCompositeVector(fcVector.Array)
+            let bfVec = new FrequencyCompositeVector(fcVector.Alphabet,fcVector.Array)
             for bioItem in source do
                 bfVec.[bioItem] <- (if fcVector.[bioItem] - 1 > 0 then fcVector.[bioItem] - 1 else 0)
             bfVec
     
-        type ProbabilityCompositeVector internal (array:float []) =
+        type ProbabilityCompositeVector internal (alphabet:'a [],array:float []) =
         
-            inherit CompositeVector<IBioItem,float>(array)
+            inherit CompositeVector<IBioItem,float>(alphabet,array)
 
             new() = 
                 let arr:'value [] = Array.zeroCreate 49
-                new ProbabilityCompositeVector(arr)
+                new ProbabilityCompositeVector(Array.empty,arr)
+
+            new(alphabet) = 
+                let arr:'value [] = Array.zeroCreate 49
+                new ProbabilityCompositeVector(alphabet,arr)
+
+            interface IBioItemFrequencies with
+                member this.Print() = printHelper (sprintf "%.3f") this
 
         /// Increase counter of position by 1.
-        let increaseInPlacePCV (bioItem:'a) (backGroundProbabilityVector:ProbabilityCompositeVector) = 
+        let internal increaseInPlacePCV (bioItem:'a) (backGroundProbabilityVector:ProbabilityCompositeVector) = 
             backGroundProbabilityVector.[bioItem] <- backGroundProbabilityVector.[bioItem] + 1.
             backGroundProbabilityVector
 
         /// Increase counter of position by n.
-        let increaseInPlacePCVBy (bioItem:'a) n (backGroundProbabilityVector:ProbabilityCompositeVector) = 
+        let internal increaseInPlacePCVBy (bioItem:'a) n (backGroundProbabilityVector:ProbabilityCompositeVector) = 
             backGroundProbabilityVector.[bioItem] <- backGroundProbabilityVector.[bioItem] + n
             backGroundProbabilityVector
 
@@ -101,7 +170,7 @@ module PositionSpecificScoringMatrices =
             let backGroundProbabilityVector = 
                 frequencyCompositeVector.Array
                 |> Array.map (fun item -> float item)
-                |> fun item -> new ProbabilityCompositeVector(item)
+                |> fun item -> new ProbabilityCompositeVector(alphabet,item)
             let sum = (float (Array.sum frequencyCompositeVector.Array)) + ((float alphabet.Length) * pseudoCount)
             for item in alphabet do
                 backGroundProbabilityVector.[item] <- (backGroundProbabilityVector.[item] + pseudoCount)/sum
@@ -195,6 +264,19 @@ module PositionSpecificScoringMatrices =
                     this.Item(item,i)
                 )
 
+        let private printHelper (toString : 'a -> string) (baseMatrix : BaseMatrix<IBioItem,'a>) =
+            if baseMatrix.Alphabet = Array.empty then
+                sprintf "%A" baseMatrix.Matrix
+            else                       
+                baseMatrix.Alphabet
+                |> Array.map (fun item ->
+                    baseMatrix.GetPositionScoresOfItem(item)
+                    |> Array.fold (fun state value -> state + " " + toString value) ""
+                    |> sprintf "%c %s" item.Symbol                        
+                )
+                |> Array.reduce (fun a b -> a + "\n" + b)
+
+
         /// Matrix with fixed positions for nucleotides and amino acids with default value of 0.
         type PositionFrequencyMatrix internal(alphabet,matrix:int [,]) =
 
@@ -207,6 +289,10 @@ module PositionSpecificScoringMatrices =
             new (alphabet,rowLength:int) = 
                 let arr = Array2D.zeroCreate 49 rowLength 
                 new PositionFrequencyMatrix(alphabet,arr)
+
+            interface IBioItemFrequencies with
+                member this.Print() = 
+                    printHelper (sprintf "%i") this
 
         /// Increase counter of PositionFrequencyMatrix at fixed position by 1.
         let internal increaseInPlacePFM (pos:int) (bioItem:'a when 'a :> IBioItem) (positionFrequencyMatrix:PositionFrequencyMatrix) = 
@@ -246,6 +332,11 @@ module PositionSpecificScoringMatrices =
             new(alphabet,rowLength:int) = 
                 let arr = Array2D.zeroCreate 49 rowLength 
                 new PositionProbabilityMatrix(alphabet,arr)
+            
+            interface IBioItemFrequencies with
+                member this.Print() = 
+                    printHelper (sprintf "%.3f") this
+
 
         /// Increase counter of PositionProbabilityMatrix at fixed position by 1.
         let internal increaseInPlacePPM (pos:int) (bioItem:'a when 'a :> IBioItem) (positionProbabilityMatrix:PositionProbabilityMatrix) = 
@@ -277,6 +368,10 @@ module PositionSpecificScoringMatrices =
                 let arr = Array2D.zeroCreate 49 rowLength 
                 new PositionWeightMatrix(Array.empty,arr)
 
+            interface IBioItemFrequencies with
+                member this.Print() = 
+                    printHelper (sprintf "%.3f") this
+
         /// Increase counter of PositionWeightMatrix at fixed position by 1.
         let internal increaseInPlacePWM (pos:int) (bioItem:'a when 'a :> IBioItem) (positionWeightMatrix:PositionWeightMatrix) = 
             positionWeightMatrix.[bioItem, pos] <- positionWeightMatrix.[bioItem, pos] + 1.
@@ -288,7 +383,7 @@ module PositionSpecificScoringMatrices =
             positionWeightMatrix
 
         /// Create PositionWeightMatrix based on ProbabilityCompositeVector and PositionProbabilityMatrix.
-        let createPositionWeightMatrix (alphabet:#IBioItem[]) (pcv:CompositeVector.ProbabilityCompositeVector) (ppMatrix:PositionProbabilityMatrix) =
+        let createPositionWeightMatrix (alphabet:#IBioItem[]) (pcv:BackgroundFrequencies.ProbabilityCompositeVector) (ppMatrix:PositionProbabilityMatrix) =
             let pwMatrix = new PositionWeightMatrix(Array2D.length2 ppMatrix.Matrix)
             pwMatrix.Alphabet <- alphabet
             for item in alphabet do
@@ -307,7 +402,7 @@ module PositionSpecificScoringMatrices =
 
     module SiteSampler =
 
-        open CompositeVector
+        open BackgroundFrequencies
 
         /// Gives the startPosition and score of the segment with the highest PositionWeightMatrixScore based on the given sequence and PositionWeightMatrix.
         let getBestPWMSsWithBPV (motiveLength:int) (alphabet:#IBioItem[]) (source:BioArray.BioArray<#IBioItem>) (pcv:ProbabilityCompositeVector) (positionProbabilityMatrix:PositionMatrix.PositionProbabilityMatrix) =
