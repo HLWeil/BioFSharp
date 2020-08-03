@@ -8,25 +8,25 @@ open BioFSharp
 TODO
 
 -Backgroundfrequencies:
-    rename
+    rename \
     make functions more concise
     add table for model species
 
-Similarity
-    1vsMany
-    ManyVsEachOther
+Similarity \
+    1vsMany \
+    ManyVsEachOther \
 
 IO
     Read PWMS
     Write PWMS
-    Hier oder in BioFSharp.IO?
+    Hier oder in BioFSharp.IO? \
 
 Dokumentation
 
 *)
 
 
-
+/// Functions for creating, comparing and using position specific scoring matrices (PWeightM, PFrequencyM, PPropabilityM).
 module PositionSpecificScoringMatrices = 
 
     type IBioItemFrequencies =
@@ -181,7 +181,7 @@ module PositionSpecificScoringMatrices =
             Array.fold (fun (value:float) (bios:#IBioItem) -> value * (pcv.[bios])) 1. bioItems
 
     ///Consists of functions to work with Position-Frequancy-, -Probability- and -WeightMatrices.
-    module PositionMatrix =
+    module PositionMatrix =     
 
         ///Checks whether all elements in the list have a wider distance than width or not.
         let internal checkForDistance (width:int) (items:int list) =
@@ -263,6 +263,12 @@ module PositionSpecificScoringMatrices =
                 Array.init this.Length (fun i ->
                     this.Item(item,i)
                 )
+
+        type TaggedPSSM<'tag,'a,'value when 'a :> IBioItem> = 
+            {
+                Tag     : 'tag
+                Matrix  : BaseMatrix<'a,'value>
+            }
 
         let private printHelper (toString : 'a -> string) (baseMatrix : BaseMatrix<IBioItem,'a>) =
             if baseMatrix.Alphabet = Array.empty then
@@ -849,18 +855,22 @@ module PositionSpecificScoringMatrices =
             |> getLeftShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
             |> getRightShiftedBestPWMSs rnd motiveLength pseudoCount alphabet sources
 
-
+    /// Functions for computing the similarity between position specific scoring matrices (motif similarity)
     module Similarity = 
 
         open PositionMatrix
 
-        let private positionMatrixToDensePositionArray (alphabet:#IBioItem[]) (matrix: BaseMatrix<IBioItem,'T>) =
+        /// Extracts only the columns of the matrix specified by the alphabet 
+        let private positionMatrixToDensePositionArray (alphabet:#IBioItem[]) (matrix: BaseMatrix<#IBioItem,'T>) =
             let get position bioitem = matrix.[bioitem,position]
             Array.init matrix.Length (fun position ->
                 alphabet
                 |> Array.map (get position)        
             )
 
+        /// Computes similarity between two motifs by summing the position wise scores obtained by applying the comparison wise functions over the alphabets
+        ///
+        /// Tries all possible gapless alignments between the motifs
         let private compareDensePositionArrays (comparisonFunction : 'T [] -> 'T [] -> float) (m1 : 'T [][]) (m2 : 'T [][]) : float = 
             if m1.Length = m2.Length then
                 let unnormalizedScore = 
@@ -885,7 +895,67 @@ module PositionSpecificScoringMatrices =
                 )
                 |> Array.max
 
-        let compareTwoPositionMatrices (alphabet:#IBioItem[]) (comparisonFunction : 'T [] -> 'T [] -> float) (matrix1: BaseMatrix<IBioItem,'T>) (matrix2: BaseMatrix<IBioItem,'T>) = 
+        /// Computes similarity between two motifs by summing the position wise scores obtained by applying the comparisonFunction over given alphabet
+        ///
+        /// Tries all possible gapless alignments between the motifs
+        let compareTwoPositionMatricesWithAlphabet (alphabet:#IBioItem[]) (comparisonFunction : 'T [] -> 'T [] -> float) (matrix1: BaseMatrix<#IBioItem,'T>) (matrix2: BaseMatrix<#IBioItem,'T>) = 
+
+            if alphabet |> Array.isEmpty then failwith "MatrixSimilarity error: Alphabets are not allowed to be empty"
+            if matrix1.Alphabet <> alphabet then printfn "MatrixSimilarity Warning: Alphabet of Matrix 1 and given alphabet do not match"
+            if matrix2.Alphabet <> alphabet then printfn "MatrixSimilarity Warning: Alphabet of Matrix 2 and given alphabet do not match"
+
             let m1 = positionMatrixToDensePositionArray alphabet matrix1
             let m2 = positionMatrixToDensePositionArray alphabet matrix2
             compareDensePositionArrays comparisonFunction m1 m2
+
+        /// Computes similarity between two motifs by summing the position wise scores obtained by applying the comparisonFunction over the alphabet, which is obtained from the motifs
+        ///
+        /// Tries all possible gapless alignments between the motifs
+        let compareTwoPositionMatrices (comparisonFunction : 'T [] -> 'T [] -> float) (matrix1: BaseMatrix<#IBioItem,'T>) (matrix2: BaseMatrix<#IBioItem,'T>) =  
+            
+            if matrix1.Alphabet <> matrix2.Alphabet then failwith "MatrixSimilarity error: Alphabet of Matrix 1 and Matrix 2 do not match"
+            if matrix1.Alphabet |> Array.isEmpty then failwith "MatrixSimilarity error: Alphabets are not allowed to be empty"
+
+            let m1 = positionMatrixToDensePositionArray matrix1.Alphabet matrix1
+            let m2 = positionMatrixToDensePositionArray matrix1.Alphabet matrix2
+            compareDensePositionArrays comparisonFunction m1 m2
+
+        /// Computes pairwise similarity between each motif in the given collection by summing the position wise scores obtained by applying the comparisonFunction over the given alphabet
+        ///
+        /// Tries all possible gapless alignments between the motifs
+        let comparePositionMatricesWithAlphabet (alphabet:#IBioItem[]) (comparisonFunction : 'T [] -> 'T [] -> float) (matrices: TaggedPSSM<'tag,#IBioItem,'T> []) =
+            if alphabet |> Array.isEmpty then failwith "MatrixSimilarity error: Alphabets are not allowed to be empty"
+
+            let densePositionArrays = 
+                matrices 
+                |> Array.map (fun m -> 
+                    if m.Matrix.Alphabet <> alphabet then printfn "MatrixSimilarity Warning: Alphabet of %A and given alphabet do not match" m.Tag
+                    m.Tag,
+                    m.Matrix |> positionMatrixToDensePositionArray alphabet
+                )
+
+            [|
+                for i = 0 to densePositionArrays.Length - 1 do
+                    for j = (i + 1) to densePositionArrays.Length - 1 do
+
+                        let n1,m1 = densePositionArrays.[i]
+                        let n2,m2 = densePositionArrays.[j]
+
+                        yield (n1,n2), compareDensePositionArrays comparisonFunction m1 m2            
+            |]
+
+        /// Computes pairwise similarity between each motif in the given collection by summing the position wise scores obtained by applying the comparisonFunction over the alphabet, which is obtained from the motifs
+        ///
+        /// Tries all possible gapless alignments between the motifs   
+        let comparePositionMatrices (comparisonFunction : 'T [] -> 'T [] -> float) (matrices: TaggedPSSM<'tag,#IBioItem,'T> []) =
+            let alphabet = 
+                matrices
+                |> Array.fold 
+                    (fun alph matrix -> 
+                        let alph' = matrix.Matrix.Alphabet
+                        if alph <> alph' then failwithf "MatrixSimilarity error: Alphabet of Matrix %A does not match preceeding matrix alphabets of the input array" matrix.Tag
+                        alph
+                    ) 
+                    matrices.[0].Matrix.Alphabet
+            
+            comparePositionMatricesWithAlphabet alphabet comparisonFunction matrices

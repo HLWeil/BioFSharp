@@ -41,6 +41,7 @@
     <Compile Include="Newick.fs" />
     <Compile Include="Obo.fs" />
     <Compile Include="OrthoMCL.fs" />
+    <Compile Include="PSSM.fs" />
     <Compile Include="ClustalOWrapper.fs" />
     <Compile Include="SOFT.fs" />
     <Compile Include="WorkflowLanguage.fs" />
