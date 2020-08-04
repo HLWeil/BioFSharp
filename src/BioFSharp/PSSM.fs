@@ -24,8 +24,6 @@ IO
 Dokumentation
 
 *)
-
-
 /// Functions for creating, comparing and using position specific scoring matrices (PWeightM, PFrequencyM, PPropabilityM).
 module PositionSpecificScoringMatrices = 
 
@@ -264,10 +262,23 @@ module PositionSpecificScoringMatrices =
                     this.Item(item,i)
                 )
 
+            member this.GetAlphabetScoresOfPosition(position) =
+                Array.map (fun item ->
+                    this.Item(item,position)
+                ) this.Alphabet
+
+        /// Position specific scoring matrix with tag
         type TaggedPSSM<'tag,'a,'value when 'a :> IBioItem> = 
             {
                 Tag     : 'tag
                 Matrix  : BaseMatrix<'a,'value>
+            }
+
+        /// Auxiliary function for creating tagged PSSM
+        let createTaggedPSSM tag matrix =
+            {
+                Tag     = tag
+                Matrix  = matrix
             }
 
         let private printHelper (toString : 'a -> string) (baseMatrix : BaseMatrix<IBioItem,'a>) =
