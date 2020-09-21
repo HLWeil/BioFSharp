@@ -116,7 +116,6 @@ module PositionSpecificScoringMatrices =
             
             if alphabet |> Array.isEmpty then failwith "MatrixSimilarity error: Alphabets are not allowed to be empty"
 
-
             use sw = new System.IO.StreamWriter(path)
 
             pssms
@@ -125,3 +124,102 @@ module PositionSpecificScoringMatrices =
                 writeFunc sw alphabet nameF valueF pssm
             )
 
+    module Read = 
+
+        open FSharpAux.IO
+
+        let private same_group l =             
+            not (String.length l = 0 || l.[0] <> '>')
+
+        let private parseJasparMatrixRow (alphabetF : char -> #IBioItem) (valueF : string -> 'value) (line:string) =
+            let sl = line  |> String.split '\t' |> Array.collect (String.split ' ') |> Array.filter ((<>) "")
+            let a = sl.[0] |> char |> alphabetF
+
+            let mutable insideBrackets = false
+            let vals =            
+                sl
+                |> Array.skip 0
+                |> Array.choose (fun x -> 
+                    match x with 
+                    | "[" -> 
+                        insideBrackets <- true
+                        None
+                    | "]" -> 
+                        insideBrackets <- false
+                        None
+                    | x when insideBrackets -> 
+                        valueF x 
+                        |> Some
+                    | _ -> None                
+                )
+            a, vals
+            
+
+        let private parseJasparMatrix (alphabetF : char -> #IBioItem) (valueF : string -> 'value) (lines : string seq) : (TaggedPSSM<string,'a,'value>) =
+            let tm = lines |> Seq.toArray
+            if Array.length tm < 2 then raise (System.Exception "Incorrect Jaspar format")
+            match tm.[0], Array.skip 1 tm with
+            | (t:string), m when t.StartsWith ">" ->  
+                let name = t.Remove(0,1)
+                let alphabet,values = 
+                    m 
+                    |> Array.map (parseJasparMatrixRow alphabetF valueF)
+                    |> Array.unzip
+                let matrix = BaseMatrix(alphabet,values.[0].Length)
+                (alphabet,values) ||> Array.map2 (fun a column ->
+                    column
+                    |> Array.mapi (fun i v -> matrix.[a,i] <- v)
+                
+                ) |> ignore
+                createTaggedPSSM name matrix
+                                                            
+            | _ -> raise (System.Exception "Incorrect Jaspar format")        
+        
+        let private parseCisBPMatrix (alphabetF : char -> #IBioItem) (valueF : string -> 'value) (lines : string seq) : BaseMatrix<'a,'value> =
+            let alphabet = lines |> Seq.head |> String.split '\t' |> Array.skip 1 |> Array.map (char >> alphabetF)
+            let values = 
+                lines
+                |> Seq.toArray
+                |> Array.skip 1
+                |> Array.map (fun l -> 
+                    l
+                    |> String.split '\t' |> Array.skip 1
+                    |> Array.map valueF
+                )
+            let matrix = BaseMatrix(alphabet,values.Length)
+            values 
+            |> Array.mapi (fun i column ->
+                (alphabet,column)
+                ||> Array.map2 (fun a v -> matrix.[a,i] <- v)
+            
+            ) |> ignore
+            matrix
+
+
+        let readSingleJasparMatrix (alphabetF : char -> #IBioItem) (valueF : string -> 'value) (path:string) =
+            FileIO.readFile path
+            |> Seq.filter (fun (l:string) -> (not (l.StartsWith ";" || l.StartsWith "#")) && l <> "")
+            |> parseJasparMatrix alphabetF valueF
+
+        let readMultipleJasparMatrices (alphabetF : char -> #IBioItem) (valueF : string -> 'value) (path:string) =
+            FileIO.readFile path
+            |> Seq.filter (fun (l:string) -> (not (l.StartsWith ";" || l.StartsWith "#")) && l <> "")            
+            |> Seq.groupWhen same_group 
+            |> Seq.map (parseJasparMatrix alphabetF valueF)
+
+        let readCisBPMatrix (alphabetF : char -> #IBioItem) (valueF : string -> 'value) (name:string) (path:string) =
+            FileIO.readFile path
+            |> Seq.filter (fun (l:string) -> (not (l.StartsWith ";" || l.StartsWith "#")) && l <> "")
+            |> parseCisBPMatrix alphabetF valueF
+            |> createTaggedPSSM name
+        //// main
+        //fileEnumerator
+        //|> Seq.filter (fun (l:string) -> not (l.StartsWith ";" || l.StartsWith "#"))
+        //|> Seq.groupWhen same_group 
+        //|> Seq.map (fun l -> record (List.ofSeq l) converter)
+        
+
+        ///// Reads FastaItem from file. Converter determines type of sequence by converting seq<char> -> type
+        //let fromFile converter (filePath) =
+        //    FileIO.readFile filePath
+        //    |> fromFileEnumerator converter
